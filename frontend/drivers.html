@@ -1,0 +1,211 @@
+<!DOCTYPE html>
+<html lang="th">
+<head>
+  <meta charset="UTF-8"/>
+  <meta name="viewport" content="width=device-width, initial-scale=1.0"/>
+  <title>Drivers — Fleet OS</title>
+  <script src="https://cdn.tailwindcss.com"></script>
+  <link rel="stylesheet" href="fleet.css"/>
+  <script src="api.js"></script>
+  <script src="nav.js"></script>
+</head>
+<body>
+<script>
+  if (!requireAuth()) throw new Error();
+  renderNav('drivers');
+</script>
+
+<div class="page-body fade-in">
+  <div style="display:flex;align-items:center;justify-content:space-between;margin-bottom:20px;">
+    <div>
+      <h1 style="font-size:22px;font-weight:700;letter-spacing:-0.5px;color:var(--apple-text-primary);">Drivers</h1>
+      <p class="text-tertiary" style="font-size:13px;margin-top:2px;" id="driver-count">Loading…</p>
+    </div>
+    <button class="btn btn-primary" id="create-btn" onclick="openModal(null)" style="display:none;">
+      <svg width="14" height="14" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2.5" stroke-linecap="round" stroke-linejoin="round"><line x1="12" y1="5" x2="12" y2="19"/><line x1="5" y1="12" x2="19" y2="12"/></svg>
+      Add Driver
+    </button>
+  </div>
+
+  <div class="filter-bar" style="margin-bottom:16px;">
+    <div class="search-wrap" style="flex:1;max-width:280px;">
+      <svg class="search-icon" width="14" height="14" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><circle cx="11" cy="11" r="8"/><line x1="21" y1="21" x2="16.65" y2="16.65"/></svg>
+      <input class="search-input" id="search-q" placeholder="Search name, license, phone…" oninput="applyFilter()"/>
+    </div>
+    <div class="chip-group">
+      <button class="chip active" data-val="" onclick="setFilter('',this)">All</button>
+      <button class="chip" data-val="ACTIVE"    onclick="setFilter('ACTIVE',this)">Active</button>
+      <button class="chip" data-val="INACTIVE"  onclick="setFilter('INACTIVE',this)">Inactive</button>
+      <button class="chip" data-val="SUSPENDED" onclick="setFilter('SUSPENDED',this)">Suspended</button>
+    </div>
+  </div>
+
+  <div id="driver-grid" style="display:grid;grid-template-columns:repeat(4,1fr);gap:12px;"></div>
+</div>
+
+<div id="modal" class="modal-overlay hidden" onclick="if(event.target===this)closeModal()">
+  <div class="modal" onclick="event.stopPropagation()">
+    <div class="modal-header">
+      <h2 class="modal-title" id="modal-title">Add Driver</h2>
+      <button class="modal-close" onclick="closeModal()">×</button>
+    </div>
+    <div class="modal-body" id="modal-body"></div>
+  </div>
+</div>
+
+<div id="toast-stack" class="toast-stack"></div>
+
+<script>
+let allDrivers = [];
+let filterStatus = '';
+const user = getUser();
+if (user?.role === 'ADMIN') document.getElementById('create-btn').style.display = 'flex';
+
+function setFilter(val, btn) {
+  filterStatus = val;
+  btn.closest('.chip-group').querySelectorAll('.chip').forEach(b => b.classList.remove('active'));
+  btn.classList.add('active');
+  applyFilter();
+}
+
+function applyFilter() {
+  const q = document.getElementById('search-q').value.toLowerCase();
+  const params = new URLSearchParams(window.location.search);
+  if (q) params.set('q', q); else params.delete('q');
+  if (filterStatus) params.set('status', filterStatus); else params.delete('status');
+  
+  const newUrl = window.location.pathname + (params.toString() ? '?' + params.toString() : '');
+  history.replaceState({}, '', newUrl);
+  const filtered = allDrivers.filter(d => {
+    if (filterStatus && d.status !== filterStatus) return false;
+    if (q && !`${d.name} ${d.license_number} ${d.phone}`.toLowerCase().includes(q)) return false;
+    return true;
+  });
+  renderGrid(filtered);
+}
+
+async function loadDrivers() {
+  try {
+    allDrivers = await api.getJSON('/drivers');
+    document.getElementById('driver-count').textContent = `${allDrivers.length} drivers`;
+    applyFilter();
+  } catch { toast('Failed to load drivers', 'error'); }
+}
+
+function licenseExpirySeverity(dateStr) {
+  const diff = (new Date(dateStr) - new Date()) / 86400000;
+  if (diff < 0)   return 'expired';
+  if (diff <= 30) return 'warning';
+  return 'ok';
+}
+
+function renderGrid(drivers) {
+  const el = document.getElementById('driver-grid');
+  if (!drivers.length) {
+    el.innerHTML = '<div class="empty-state" style="grid-column:1/-1;"><p class="empty-state-text">No drivers found</p></div>';
+    return;
+  }
+  el.innerHTML = drivers.map(d => {
+    const sev = licenseExpirySeverity(d.license_expires_at);
+    const licColor = sev === 'expired' ? 'var(--apple-red)' : sev === 'warning' ? 'var(--apple-orange)' : 'var(--apple-text-tertiary)';
+    const initial  = (d.name || 'D')[0].toUpperCase();
+    return `
+      <div class="entity-card" onclick="openModal('${d.id}')">
+        <div style="display:flex;align-items:flex-start;gap:10px;margin-bottom:12px;">
+          <div class="entity-avatar">${initial}</div>
+          <div style="flex:1;min-width:0;">
+            <div style="font-size:13px;font-weight:600;color:var(--apple-text-primary);white-space:nowrap;overflow:hidden;text-overflow:ellipsis;">${d.name}</div>
+            <div style="font-size:11px;color:var(--apple-text-tertiary);margin-top:1px;">${d.phone}</div>
+          </div>
+          ${badge(d.status)}
+        </div>
+        <div class="mono-sm" style="color:var(--apple-text-secondary);margin-bottom:4px;">${d.license_number}</div>
+        <div style="font-size:11px;color:${licColor};">
+          ${sev === 'expired' ? 'License EXPIRED' : 'Expires ' + fmt.date(d.license_expires_at)}
+        </div>
+      </div>
+    `;
+  }).join('');
+}
+
+function openModal(id) {
+  const d = id ? allDrivers.find(x => x.id === id) : null;
+  document.getElementById('modal-title').textContent = d ? d.name : 'Add Driver';
+  document.getElementById('modal-body').innerHTML = `
+    <div style="display:flex;flex-direction:column;gap:12px;">
+      <div class="form-group">
+        <label class="form-label">Full Name *</label>
+        <input id="f-name" class="form-input" value="${d?.name||''}" placeholder="สมชาย ใจดี"/>
+      </div>
+      <div class="form-group">
+        <label class="form-label">License Number *</label>
+        <input id="f-lic" class="form-input" value="${d?.license_number||''}" placeholder="D-1234567"/>
+      </div>
+      <div class="form-group">
+        <label class="form-label">License Expires *</label>
+        <input id="f-exp" type="date" class="form-input" value="${d?.license_expires_at?.slice(0,10)||''}"/>
+      </div>
+      <div class="form-group">
+        <label class="form-label">Phone *</label>
+        <input id="f-phone" class="form-input" value="${d?.phone||''}" placeholder="08X-XXX-XXXX"/>
+      </div>
+      ${d ? `
+        <div class="form-group">
+          <label class="form-label">Status</label>
+          <select id="f-status" class="form-input form-select">
+            ${['ACTIVE','INACTIVE','SUSPENDED'].map(s=>`<option value="${s}" ${d.status===s?'selected':''}>${s}</option>`).join('')}
+          </select>
+        </div>
+      ` : ''}
+      <div id="form-error" class="form-error hidden"></div>
+      <div style="display:flex;gap:8px;margin-top:4px;">
+        <button onclick="closeModal()" class="btn btn-ghost btn-full">Cancel</button>
+        <button onclick="submitDriver('${d?.id||''}')" class="btn btn-primary btn-full">${d ? 'Save' : 'Create'}</button>
+      </div>
+    </div>
+  `;
+  document.getElementById('modal').classList.remove('hidden');
+}
+
+async function submitDriver(id) {
+  const body = {
+    name: document.getElementById('f-name').value.trim(),
+    license_number: document.getElementById('f-lic').value.trim(),
+    license_expires_at: document.getElementById('f-exp').value,
+    phone: document.getElementById('f-phone').value.trim(),
+  };
+  if (id) body.status = document.getElementById('f-status').value;
+  const errEl = document.getElementById('form-error');
+  try {
+    if (id) await api.patchJSON(`/drivers/${id}`, body);
+    else    await api.postJSON('/drivers', body);
+    toast(id ? 'Driver updated' : 'Driver created');
+    closeModal();
+    await loadDrivers();
+  } catch (err) {
+    errEl.textContent = err.message;
+    errEl.classList.remove('hidden');
+  }
+}
+
+function closeModal() { document.getElementById('modal').classList.add('hidden'); }
+document.addEventListener('keydown', e => { if (e.key === 'Escape') closeModal(); });
+
+// --- ส่วนที่เพิ่ม: คืนค่าจาก URL เมื่อโหลดหน้าจอครั้งแรก ---
+const urlP = new URLSearchParams(window.location.search);
+if (urlP.get('q')) {
+  document.getElementById('search-q').value = urlP.get('q');
+}
+if (urlP.get('status')) {
+  filterStatus = urlP.get('status');
+  const targetChip = document.querySelector(`.chip[data-val="${filterStatus}"]`);
+  if (targetChip) {
+    document.querySelectorAll('.chip').forEach(b => b.classList.remove('active'));
+    targetChip.classList.add('active');
+  }
+}
+
+loadDrivers();
+</script>
+</body>
+</html>
