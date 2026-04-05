@@ -30,15 +30,14 @@
   --apple-purple-dim:   rgba(175,82,222,0.12);
   --apple-teal:         #5AC8FA;
 
-  /* Sidebar specific */
-  --sidebar-bg:         #1D1D1F;
-  --sidebar-border:     rgba(255,255,255,0.06);
-  --sidebar-text:       rgba(255,255,255,0.55);
-  --sidebar-text-active: rgba(255,255,255,0.92);
-  --sidebar-hover:      rgba(255,255,255,0.06);
-  --sidebar-active-bg:  rgba(255,255,255,0.09);
-  --sidebar-active-indicator: #0071E3;
-
+ /* Sidebar specific */
+  --sidebar-bg:         #cbd8da;      
+  --sidebar-border:     rgba(0, 113, 227, 0.1); 
+  --sidebar-text:       #0056b3;       
+  --sidebar-text-active: #0071E3;    
+  --sidebar-hover:      rgba(0, 113, 227, 0.08); 
+  --sidebar-active-bg:  rgba(0, 113, 227, 0.12); 
+  --sidebar-active-indicator: #0071E3; 
   /* ── Typography ── */
   --font-body:  'Inter', -apple-system, BlinkMacSystemFont, sans-serif;
   --font-mono:  'JetBrains Mono', 'SF Mono', monospace;
@@ -101,8 +100,13 @@
     --apple-purple:       #BF5AF2;
     --apple-purple-dim:   rgba(191,90,242,0.15);
 
-    --sidebar-bg:         #111111;
-    --sidebar-border:     rgba(255,255,255,0.06);
+    --sidebar-bg:              #111111;
+    --sidebar-border:          rgba(255,255,255,0.1);
+    --sidebar-text:            rgba(255,255,255,0.55);
+    --sidebar-text-active:     #ffffff;
+    --sidebar-hover:           rgba(255,255,255,0.07);
+    --sidebar-active-bg:       rgba(10,132,255,0.18);
+    --sidebar-active-indicator: #0A84FF;
 
     --shadow-xs:  0 1px 2px rgba(0,0,0,0.3);
     --shadow-sm:  0 1px 4px rgba(0,0,0,0.4), 0 0 0 0.5px rgba(255,255,255,0.04);
@@ -111,6 +115,18 @@
     --shadow-lg:  0 16px 40px rgba(0,0,0,0.7), 0 0 0 0.5px rgba(255,255,255,0.04);
     --shadow-xl:  0 24px 64px rgba(0,0,0,0.8), 0 0 0 0.5px rgba(255,255,255,0.05);
   }
+  .nav-item {
+    /* ⚪ แก้ตรงนี้: ใช้สีขาว/เงิน เพื่อให้เห็นชัดบนพื้นหลังดำ */
+    color: rgba(255, 255, 255, 0.7) !important;
+  }
+  .dark .nav-item {
+  color: rgba(255, 255, 255, 0.7) !important;
+}
+}
+
+/* ถ้าคุณใช้ Class .dark ในการสลับโหมดด้วย ให้ใส่ตัวนี้เพิ่มครับ */
+.dark .nav-item {
+  color: rgba(255, 255, 255, 0.7) !important;
 }
 
 /* Manual dark class override */
@@ -137,8 +153,13 @@
   --apple-orange-dim:   rgba(255,159,10,0.15);
   --apple-purple:       #BF5AF2;
   --apple-purple-dim:   rgba(191,90,242,0.15);
-  --sidebar-bg:         #111111;
-  --sidebar-border:     rgba(255,255,255,0.06);
+  --sidebar-bg:              #111111;
+  --sidebar-border:          rgba(255,255,255,0.06);
+  --sidebar-text:            rgba(255,255,255,0.55);
+  --sidebar-text-active:     #ffffff;
+  --sidebar-hover:           rgba(255,255,255,0.07);
+  --sidebar-active-bg:       rgba(10,132,255,0.18);
+  --sidebar-active-indicator: #0A84FF;
   --shadow-xs:  0 1px 2px rgba(0,0,0,0.3);
   --shadow-sm:  0 1px 4px rgba(0,0,0,0.4), 0 0 0 0.5px rgba(255,255,255,0.04);
   --shadow:     0 4px 12px rgba(0,0,0,0.5), 0 0 0 0.5px rgba(255,255,255,0.04);
@@ -247,7 +268,7 @@ img { display: block; max-width: 100%; }
 .nav-section-label {
   font-size: 10px;
   font-weight: 600;
-  color: rgba(255,255,255,0.25);
+  color: var(--apple-text-secondary);
   letter-spacing: 0.7px;
   text-transform: uppercase;
   padding: 8px 10px 4px;
@@ -271,7 +292,7 @@ img { display: block; max-width: 100%; }
 
 .nav-item:hover {
   background: var(--sidebar-hover);
-  color: rgba(255,255,255,0.8);
+  color: var(--sidebar-text-active);
 }
 
 .nav-item.active {
@@ -345,7 +366,7 @@ img { display: block; max-width: 100%; }
 .user-name {
   font-size: 13px;
   font-weight: 500;
-  color: rgba(255,255,255,0.75);
+  color: #1E293B; 
   white-space: nowrap;
   overflow: hidden;
   text-overflow: ellipsis;
@@ -353,7 +374,7 @@ img { display: block; max-width: 100%; }
 
 .user-role {
   font-size: 11px;
-  color: rgba(255,255,255,0.3);
+  color: #64748B; 
 }
 
 /* Theme toggle */
@@ -363,7 +384,7 @@ img { display: block; max-width: 100%; }
   border-radius: var(--radius-sm);
   background: transparent;
   border: none;
-  color: rgba(255,255,255,0.3);
+  color: rgba(126, 126, 126, 0.84);
   display: flex; align-items: center; justify-content: center;
   cursor: pointer;
   transition: color var(--duration-fast), background var(--duration-fast);

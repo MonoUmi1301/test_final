@@ -87,6 +87,23 @@ const STATUS_PALETTE = {
 
 let donutChart, lineChart;
 
+// ── อ่านสีจริงตาม theme ปัจจุบัน ──────────────────────────────────────────
+// Chart.js render บน <canvas> ไม่รองรับ CSS variables
+// ต้องส่ง hex/rgba จริงเข้าไปเท่านั้น
+function getChartColors() {
+  const isDark = document.documentElement.classList.contains('dark') ||
+                 window.matchMedia('(prefers-color-scheme: dark)').matches;
+  return {
+    isDark,
+    gridColor:   isDark ? 'rgba(255,255,255,0.08)' : 'rgba(0,0,0,0.06)',
+    tickColor:   isDark ? '#98989D'                 : '#6E6E73',
+    barColor:    isDark ? 'rgba(10,132,255,0.22)'   : 'rgba(0,113,227,0.14)',
+    barBorder:   isDark ? '#0A84FF'                 : '#0071E3',
+    lineBorder:  isDark ? '#30D158'                 : '#34C759',
+    linePoint:   isDark ? '#30D158'                 : '#34C759',
+  };
+}
+
 async function loadDashboard() {
   try {
     const [metrics, byStatus, trend, activeTrips, alerts] = await Promise.all([
@@ -152,9 +169,7 @@ function renderDonut(data) {
 }
 
 function renderLine(data) {
-  const isDark = document.documentElement.classList.contains('dark');
-  const gridColor = isDark ? 'rgba(255,255,255,0.05)' : 'rgba(0,0,0,0.05)';
-  const tickColor = 'var(--apple-text-tertiary)';
+  const c = getChartColors();
 
   if (lineChart) lineChart.destroy();
   lineChart = new Chart(document.getElementById('line-chart'), {
@@ -165,8 +180,8 @@ function renderLine(data) {
         {
           label: 'Distance (km)',
           data: data.map(d => d.total_distance),
-          backgroundColor: 'rgba(0,113,227,0.12)',
-          borderColor: '#0071E3',
+          backgroundColor: c.barColor,
+          borderColor: c.barBorder,
           borderWidth: 1.5,
           borderRadius: 5,
           type: 'bar',
@@ -174,14 +189,14 @@ function renderLine(data) {
         {
           label: 'Trips',
           data: data.map(d => d.trip_count),
-          borderColor: '#34C759',
+          borderColor: c.lineBorder,
           backgroundColor: 'transparent',
-          borderWidth: 1.5,
+          borderWidth: 2,
           tension: 0.4,
           type: 'line',
           yAxisID: 'y2',
-          pointRadius: 3,
-          pointBackgroundColor: '#34C759',
+          pointRadius: 3.5,
+          pointBackgroundColor: c.linePoint,
         },
       ],
     },
@@ -189,13 +204,46 @@ function renderLine(data) {
       maintainAspectRatio: false,
       plugins: { legend: { display: false } },
       scales: {
-        x: { grid: { display: false }, ticks: { color: tickColor, font: { size: 11, family: 'Inter' } } },
-        y: { grid: { color: gridColor }, ticks: { color: tickColor, font: { size: 11, family: 'Inter' } }, beginAtZero: true },
-        y2: { position: 'right', grid: { display: false }, ticks: { color: tickColor, font: { size: 11, family: 'Inter' } }, beginAtZero: true },
+        x: {
+          grid: { display: false },
+          border: { color: c.gridColor },
+          ticks: { color: c.tickColor, font: { size: 11, family: 'Inter' } },
+        },
+        y: {
+          grid: { color: c.gridColor },
+          border: { dash: [3, 3], color: 'transparent' },
+          ticks: { color: c.tickColor, font: { size: 11, family: 'Inter' } },
+          beginAtZero: true,
+        },
+        y2: {
+          position: 'right',
+          grid: { display: false },
+          border: { color: 'transparent' },
+          ticks: { color: c.tickColor, font: { size: 11, family: 'Inter' } },
+          beginAtZero: true,
+        },
       },
     },
   });
 }
+
+// ── Re-render chart ทันทีเมื่อ toggle theme ────────────────────────────────
+const themeObserver = new MutationObserver(() => {
+  if (!lineChart) return;
+  const c = getChartColors();
+  // อัปเดต tick & grid colors
+  lineChart.options.scales.x.ticks.color  = c.tickColor;
+  lineChart.options.scales.y.ticks.color  = c.tickColor;
+  lineChart.options.scales.y.grid.color   = c.gridColor;
+  lineChart.options.scales.y2.ticks.color = c.tickColor;
+  // อัปเดต dataset colors
+  lineChart.data.datasets[0].backgroundColor = c.barColor;
+  lineChart.data.datasets[0].borderColor      = c.barBorder;
+  lineChart.data.datasets[1].borderColor      = c.lineBorder;
+  lineChart.data.datasets[1].pointBackgroundColor = c.linePoint;
+  lineChart.update('none'); // 'none' = no animation, เร็วกว่า
+});
+themeObserver.observe(document.documentElement, { attributes: true, attributeFilter: ['class'] });
 
 function renderActiveTrips(trips) {
   const el = document.getElementById('active-trips-list');

@@ -9,9 +9,9 @@ const { errorResponse, successResponse } = require('../utils/response');
 
 // Valid status transitions (ข้อ 2.5)
 const VALID_TRANSITIONS = {
-  IDLE: ['ACTIVE', 'MAINTENANCE'],
-  ACTIVE: ['IDLE', 'MAINTENANCE'],
-  MAINTENANCE: ['IDLE'],
+  IDLE: ['ACTIVE', 'MAINTENANCE' ,'RETIRED'],
+  ACTIVE: ['IDLE', 'MAINTENANCE', 'RETIRED'],
+  MAINTENANCE: ['IDLE', 'RETIRED'],
   RETIRED: [],
 };
 
