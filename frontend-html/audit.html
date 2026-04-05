@@ -1,0 +1,183 @@
+<!DOCTYPE html>
+<html lang="th">
+<head>
+  <meta charset="UTF-8"/>
+  <meta name="viewport" content="width=device-width, initial-scale=1.0"/>
+  <title>Audit Log — Fleet OS</title>
+  <script src="https://cdn.tailwindcss.com"></script>
+  <link rel="stylesheet" href="fleet.css"/>
+  <script src="api.js"></script>
+  <script src="nav.js"></script>
+</head>
+<body>
+<script>
+  if (!requireAuth()) throw new Error();
+  renderNav('audit');
+</script>
+
+<div class="page-body fade-in">
+  <div style="margin-bottom:20px;">
+    <h1 style="font-size:22px;font-weight:700;letter-spacing:-0.5px;color:var(--apple-text-primary);">Audit Log</h1>
+    <p class="text-tertiary" style="font-size:13px;margin-top:2px;" id="log-meta">Loading…</p>
+  </div>
+
+  <div class="card" style="padding:14px;margin-bottom:14px;">
+    <div class="filter-bar">
+      <select id="f-action" class="form-input form-select" style="width:170px;">
+        <option value="">All Actions</option>
+      </select>
+      <select id="f-resource" class="form-input form-select" style="width:150px;">
+        <option value="">All Resources</option>
+      </select>
+      <input id="f-date-from" type="date" class="form-input" style="width:150px;"/>
+      <input id="f-date-to"   type="date" class="form-input" style="width:150px;"/>
+      <input id="f-user" class="form-input" placeholder="User ID (admin only)" style="width:160px;display:none;"/>
+      <button onclick="applyFilters()" class="btn btn-primary btn-sm">Apply</button>
+      <button onclick="clearFilters()" class="btn btn-ghost btn-sm">Clear</button>
+      <span id="filter-note" style="margin-left:auto;font-size:11px;color:var(--apple-text-tertiary);"></span>
+    </div>
+  </div>
+
+  <div class="card" style="overflow:hidden;">
+    <div class="list-header" style="grid-template-columns:170px 130px 1fr 1fr 80px;">
+      <div class="list-th">Timestamp</div>
+      <div class="list-th">User</div>
+      <div class="list-th">Action</div>
+      <div class="list-th">Resource</div>
+      <div class="list-th">Result</div>
+    </div>
+    <div id="log-table">
+      <div class="empty-state"><p class="empty-state-text">Loading…</p></div>
+    </div>
+  </div>
+
+  <div style="display:flex;align-items:center;justify-content:space-between;margin-top:14px;" id="pagination"></div>
+</div>
+
+<div id="toast-stack" class="toast-stack"></div>
+
+<script>
+const user = getUser();
+let currentPage = 1;
+const perPage = 60;
+
+// --- ส่วนที่แก้ไข: สร้าง Dropdown Options ด้วย JavaScript ---
+const actions = ['LOGIN','LOGOUT','CREATE_VEHICLE','UPDATE_VEHICLE','DELETE_VEHICLE','ASSIGN_DRIVER','CREATE_DRIVER','UPDATE_DRIVER','CREATE_TRIP','START_TRIP','COMPLETE_TRIP','CANCEL_TRIP','UPDATE_CHECKPOINT','CREATE_MAINTENANCE','UPDATE_MAINTENANCE'];
+const resources = ['USER','VEHICLE','DRIVER','TRIP','CHECKPOINT','MAINTENANCE'];
+
+// เติมตัวเลือก Action
+document.getElementById('f-action').innerHTML += actions.map(a => 
+  `<option value="${a}">${a.replace(/_/g, ' ')}</option>`
+).join('');
+
+// เติมตัวเลือก Resource
+document.getElementById('f-resource').innerHTML += resources.map(r => 
+  `<option value="${r}">${r}</option>`
+).join('');
+// -------------------------------------------------------------------------
+
+if (user?.role === 'DISPATCHER') {
+  document.getElementById('filter-note').textContent = 'Showing your activity only';
+}
+if (user?.role === 'ADMIN') {
+  document.getElementById('f-user').style.display = '';
+}
+
+const ACTION_COLORS = {
+  LOGIN: 'var(--apple-green)', LOGOUT: 'var(--apple-text-tertiary)',
+  DELETE_VEHICLE: 'var(--apple-red)', DELETE_DRIVER: 'var(--apple-red)',
+  CREATE_VEHICLE: 'var(--apple-blue)', CREATE_DRIVER: 'var(--apple-blue)', CREATE_TRIP: 'var(--apple-blue)',
+  COMPLETE_TRIP:  'var(--apple-green)', CANCEL_TRIP: 'var(--apple-orange)',
+};
+
+async function loadLogs() {
+  const params = new URLSearchParams({ page: currentPage, limit: perPage });
+  const action   = document.getElementById('f-action').value;
+  const resource = document.getElementById('f-resource').value;
+  const from     = document.getElementById('f-date-from').value;
+  const to       = document.getElementById('f-date-to').value;
+  const userId   = document.getElementById('f-user').value.trim();
+
+  if (action)   params.set('action', action);
+  if (resource) params.set('resource_type', resource);
+  if (from)     params.set('date_from', from + 'T00:00:00');
+  if (to)       params.set('date_to',   to   + 'T23:59:59');
+  if (userId && user?.role === 'ADMIN') params.set('user_id', userId);
+
+  history.replaceState({}, '', '?' + params.toString());
+
+  try {
+    const res  = await apiFetch(`/audit-logs?${params}`);
+    const json = await res.json();
+    const logs = json.data;
+    const meta = json.meta;
+
+    document.getElementById('log-meta').textContent = `${(meta?.total || 0).toLocaleString()} entries`;
+    renderTable(logs);
+    renderPagination(meta);
+  } catch { 
+    toast('Failed to load audit logs', 'error'); 
+  }
+}
+
+function applyFilters() { currentPage = 1; loadLogs(); }
+
+function clearFilters() {
+  document.getElementById('f-action').value    = '';
+  document.getElementById('f-resource').value  = '';
+  document.getElementById('f-date-from').value = '';
+  document.getElementById('f-date-to').value   = '';
+  document.getElementById('f-user').value      = '';
+  applyFilters();
+}
+
+function renderTable(logs) {
+  const el = document.getElementById('log-table');
+  if (!logs?.length) {
+    el.innerHTML = '<div class="empty-state"><p class="empty-state-text">No log entries found</p></div>';
+    return;
+  }
+  el.innerHTML = logs.map(l => `
+    <div class="list-row" style="grid-template-columns:170px 130px 1fr 1fr 80px;">
+      <div class="mono-sm" style="color:var(--apple-text-tertiary);">
+        ${new Date(l.created_at).toLocaleString('th-TH')}
+      </div>
+      <div style="font-size:13px;color:var(--apple-text-secondary);">${l.username || l.user_id?.slice(0,8) || '—'}</div>
+      <div>
+        <span class="mono-sm" style="color:${ACTION_COLORS[l.action]||'var(--apple-text-primary)'};">${l.action}</span>
+      </div>
+      <div style="font-size:13px;color:var(--apple-text-secondary);">
+        ${l.resource_type}
+        ${l.resource_id ? `<span class="mono-sm" style="color:var(--apple-text-tertiary);margin-left:6px;">${l.resource_id.slice(0,8)}</span>` : ''}
+      </div>
+      <div>
+        <span class="badge ${l.result === 'SUCCESS' ? 'badge-green' : 'badge-red'}">${l.result}</span>
+      </div>
+    </div>
+  `).join('');
+}
+
+function renderPagination(meta) {
+  const el = document.getElementById('pagination');
+  if (!meta || meta.pages <= 1) { el.innerHTML = ''; return; }
+  el.innerHTML = `
+    <button onclick="changePage(${currentPage-1})" ${currentPage===1?'disabled':''} class="btn btn-ghost btn-sm">← Previous</button>
+    <span class="page-info">Page ${meta.page} of ${meta.pages}</span>
+    <button onclick="changePage(${currentPage+1})" ${currentPage===meta.pages?'disabled':''} class="btn btn-ghost btn-sm">Next →</button>
+  `;
+}
+
+function changePage(n) { currentPage = n; loadLogs(); window.scrollTo(0,0); }
+
+// Restore from URL
+const urlP = new URLSearchParams(window.location.search);
+if (urlP.get('action'))         document.getElementById('f-action').value    = urlP.get('action');
+if (urlP.get('resource_type'))  document.getElementById('f-resource').value  = urlP.get('resource_type');
+if (urlP.get('date_from'))      document.getElementById('f-date-from').value = urlP.get('date_from').slice(0,10);
+if (urlP.get('date_to'))        document.getElementById('f-date-to').value   = urlP.get('date_to').slice(0,10);
+if (urlP.get('page'))           currentPage = parseInt(urlP.get('page'));
+
+loadLogs();
+</script>
+</body>
+</html>
